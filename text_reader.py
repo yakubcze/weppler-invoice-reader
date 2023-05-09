@@ -1,8 +1,9 @@
-import pdftotext
-import re
-import os
-import pandas
-import ocr_reader
+import pdftotext    #prevod pdf na text
+import re           #regexy
+import os           #prace se soubory, adresari, ...
+import pandas       #export do csv
+import ocr_reader   #druhy soubor s funkcemi souvisejicimi s OCR
+import tqdm         #progress bar
 
 directory = "./pdf/"
 files = []
@@ -11,7 +12,12 @@ for file in os.listdir(directory):
     files.append(file)
 
 def testICO(input: str):
-    #Zkontroluje jestli je cislo validni ICO
+    """
+    Kontrola jestli je ICO validni pomoci propoctu
+    https://phpfashion.com/jak-overit-platne-ic-a-rodne-cislo
+    https://overeni-ico.peckapc.cz/
+    """
+
     chars = list(input)
     soucet = 0
 
@@ -30,15 +36,35 @@ def testICO(input: str):
     return(int(chars[7]) == posledni_cislo)
 
 def checkDuplicate(input: list):
-    #Zkontroluje jestli se cislo ktere bylo vyhodnocene jako ICO nevyskytuje v dokumentu dvakrat (prevedenim do SETu)
+    """
+    Kontrola jestli nebylo nalezeno vicekrat stejno ICO.
+    Kontrola probiha prevedenim do python setu, ktery nepodporuje duplicitni hodnoty.
+    """
+
     uniqueSet = set(input)
     return(uniqueSet)
 
-neprecteneSoubory = []
-
-def returnIco(pdf):
+def returnIcoPdf(pdf):
+    """
+    Vyfiltruje pomoci regexu ze ziskaneho textu vsechna cisla, ktera by svym formatem mohla byt povazovana za ICO ->
+    pote odstrani duplicity pomoci funkce checkDuplicate -> pote zkontroluje zda je cislo validni ICO pomoci funkce testICO ->
+    pokud ano, prida ho do seznamu icoList -> nakonec vrati list se vsemi nalezenymi ICO v souboru
+    """
     matchList = checkDuplicate(re.findall(r"(?<!\S)\d{8}\b(?!\S)|(?<!\S)\d{8}\b(?![^;,])", pdf[0]))
     icoList = [file] 
+
+    for ico in matchList:
+        if testICO(ico):
+            icoList.append(ico)
+
+    return(icoList)
+
+def returnIcoOcr(ocr):
+    """
+    Totez co returnIcoPdf, jen mirne zmeny
+    """
+    matchList = checkDuplicate(re.findall(r"(?<!\S)\d{8}\b(?!\S)|(?<!\S)\d{8}\b(?![^;,])", ocr))
+    icoList = [file]
 
     for ico in matchList:
         if testICO(ico):
@@ -49,38 +75,40 @@ def returnIco(pdf):
 fileObjects = []
 chybneSoubory = []
 
-#pokusi se kazdy soubor prevest na text, ziskat cisla ktera by mohli byt ico, zkontroluje jestli nejsou duplikatni cisla, zkontroluje
-#jestli je cislo validni ico a vrati seznam ve formatu nazev souboru: ico1, ico2, icoN, ...
-#
-#chybne soubory ulozi do samstatného seznamu
+progress_bar = tqdm.tqdm(total=len(files))#progress bar na terminal
+
+"""
+Pokusi se kazdy soubor ve slozce prevest na text, ziskat cisla ktera odpovidaji formatu pro ICO a vytvorit zaznam ve formatu:
+0/1     <nazev_souboru>     <ico1>  <ico2>  <icoN>
+kde 0/1 je priznak zda byli hodnoty ziskany pomoci bezneho prevodu PDF na txt (=0), nebo pomoci OCR (=1)
+
+pokud se nepodarilo soubor otevrit, prida se zaznam ve formatu:
+0       <nazev_souboru>     chyba
+coz znamena ze soubor PDF nejde otevrit (pravdepodobne ZIP, PNG, JPG, ... soubory)
+"""
 for file in files:
     with open(directory+file, "rb") as f:
         try:
             pdf = pdftotext.PDF(f)
-            ico = returnIco(pdf)
-            if len(ico) == 1:
-                neprecteneSoubory.append(file)#kdyz nebylo ze souboru vyctene zadne ico, tak tak se prida do seznamu neprectenesoubory a pozdeji se s nim pracuje pomocí ocr
+            icoPdf = returnIcoPdf(pdf)
+            if len(icoPdf) > 1:
+                pomList = [0] + icoPdf
+                fileObjects.append(pomList)
             else:
-                fileObjects.append(ico)
-        except pdftotext.Error:
-            soubor = file
+                prevod = ocr_reader.returnInvoiceOcr(directory+file)
+                ico = returnIcoOcr(prevod)
+                pomList = [1] + ico
+                fileObjects.append(pomList)
+        except pdftotext.Error: #chybne soubory ktere nejde otevrit (prilohy, apod...)
             chyba = "Chyba"
             chybneSoubory.append(file)
-            fileObjects.append([file, chyba])
+            fileObjects.append([0, file, chyba])
+    progress_bar.update()
 
-#zpracovavani ocr souboru
-for soubor in neprecteneSoubory:
-    prevod = ocr_reader.returnInvoiceOcr(directory+soubor)
-    returnIco(prevod)
+progress_bar.close()#restart progress baru
 
-
-#potom smazat
-#for zaznam in fileObjects:
-#    print(zaznam)
-
-for soubor in neprecteneSoubory:
-    print(soubor)
-
-#Uložení do CSV
+"""
+Ulozi vsechny ziskane data do CSV tabulky
+"""
 table = pandas.DataFrame(fileObjects)
 table.to_csv("out.csv")
