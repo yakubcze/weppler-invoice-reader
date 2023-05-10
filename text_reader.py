@@ -1,4 +1,4 @@
-import re           #regexy
+import re   #regexy
 
 def testICO(input: str):
     """

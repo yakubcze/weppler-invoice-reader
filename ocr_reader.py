@@ -2,8 +2,8 @@ from PIL import Image                       #potrebne pro OCR
 import pytesseract                          #prace s tesseract enginem
 from pdf2image import convert_from_path     #prevod pdf na obrazek
 import os                                   #prace se soubory, adresari, ...
-import re
-import text_reader
+import re                                   #regexy
+import text_reader                          #dalsi soubor v adresari
 
 """
 Vytvoreni slozky pro prevod PDF souboru na obrazky pro pozdejsim zpracovani tesseract enginem

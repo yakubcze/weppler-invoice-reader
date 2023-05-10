@@ -30,7 +30,7 @@ coz znamena ze soubor PDF nejde otevrit (pravdepodobne ZIP, PNG, JPG, ... soubor
 fileObjects = []
 chybneSoubory = []
 
-progress_bar = tqdm.tqdm(total=len(files))#progress bar na terminal
+progress_bar = tqdm.tqdm(total=len(files))#progress bar na terminal, 0 - pocet souboru v adresari
 for file in files:
     with open(directory+file, "rb") as f:
         try:
