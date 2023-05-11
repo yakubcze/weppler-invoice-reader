@@ -48,6 +48,9 @@ for file in files:
             chyba = "Chyba"
             chybneSoubory.append(file)
             fileObjects.append([0, file, chyba])
+        except IndexError: #ochrana proti jinym chybnym PDF souborum (root object is missing or invalid), ALE protoze IndexError je prilis obecny error -> je nutno zkontrolovat rucne
+            print(f"Soubor: {file} nebylo možné zpracovat! Zkontroluj tento soubor.")
+            sys.exit(1)
     progress_bar.update()
 
 progress_bar.close()#restart progress baru
